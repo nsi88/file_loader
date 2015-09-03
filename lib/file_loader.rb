@@ -6,37 +6,45 @@ require 'fileutils'
 module FileLoader
   extend self
 
-  def parse(url)
+  def parse_url(url)
     url.match(/^(?:(?<protocol>\w+):\/\/(?:(?<user>.+?)(?:\:(?<password>.+?))?@)?(?<host>.+?):?)?(?<path>\/.+)?$/) or raise("Invalid url #{url}")
+  end
+
+  def build_url(opts)
+    res = ''
+    res += "#{opts[:protocol]}://" if opts[:protocol]
+    res += opts[:user].to_s
+    res += ":#{opts[:password]}" if opts[:password]
+    res += '@' if opts[:user]
+    res += "#{opts[:host]}:" if opts[:host]
+    res += opts[:path].to_s
   end
 
   def download(src, dst, opts = {})
     src = src.shellescape
     dst = dst.shellescape
-    parsed_src = parse(src)
+    psrc = parse_url(src)
     unless Dir.exists?(File.dirname(dst))
       FileUtils.mkdir_p(File.dirname(dst), :mode => opts[:permissions] ? opts[:permissions].to_i(8) : nil)
     end
-    case parsed_src[:protocol]
+    case psrc[:protocol]
     when 'http', 'https', 'ftp'
       cmd = "wget #{src} -O #{dst}"
     when 'scp'
-      if Socket.gethostname == parsed_src[:host]
-        cmd = cp_cmd(parsed_src[:path], dst)
+      if Socket.gethostname == psrc[:host]
+        cmd = cp_cmd(psrc[:path], dst)
       else
         cmd = "scp -r -oBatchMode=yes -oStrictHostKeyChecking=no "
         cmd += "-l #{speed_limit} " if opts[:speed_limit]
         cmd += '"'
-        user = parsed_src[:user] || opts[:user]
-        cmd += user if user
-        cmd += ":#{parsed_src[:password]}" if parsed_src[:password]
-        cmd += '@' if user
-        cmd += "#{parsed_src[:host]}:#{parsed_src[:path]}\" #{dst}"
+        cmd += build_url(user: psrc[:user] || opts[:user], password: psrc[:password] || opts[:password], host: psrc[:host], path: psrc[:path])
+        cmd += '"'
+        cmd += " \"#{dst}\""
       end
     when nil
       cmd = cp_cmd(src, dst)
     else
-      raise "Unsupported protocol #{parsed_src[:protocol]}"
+      raise "Unsupported protocol #{psrc[:protocol]}"
     end
     opts[:logger].debug(cmd) if opts[:logger]
     exec_cmd(cmd, opts[:retries].to_i) unless opts[:dry_run]
@@ -45,7 +53,7 @@ module FileLoader
   def upload(src, dst, opts = {})
     src = src.shellescape
     dst = dst.shellescape
-    parsed_dst = parse(dst)
+    parsed_dst = parse_url(dst)
     case parsed_dst[:protocol]
     when 'scp'
       if Socket.gethostname == parsed_dst[:host]
