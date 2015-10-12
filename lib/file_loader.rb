@@ -38,6 +38,25 @@ module FileLoader
     res
   end
 
+  def exists?(url, opts = {})
+    purl = parse_url(url)
+    case purl[:protocol]
+    when 'http', 'https', 'ftp'
+      cmd = "curl -I \"#{url}\""
+    when 'scp'
+      cmd = "ssh -oBatchMode=yes -oStrictHostKeyChecking=no "
+      cmd += build_url(user: purl[:user] || opts[:user], password: purl[:password] || opts[:password], host: purl[:host])
+      cmd += ' "test -f '
+      cmd += purl[:path]
+      cmd += '"'
+    when nil
+      cmd = 'test -f ' + purl[:path]
+    else
+      return false
+    end
+    system(cmd + ' 2>/dev/null 1>/dev/null')
+  end
+
   def download(src, dst, opts = {})
     pdst = parse_url(dst = dst.shellescape)
     raise "Unsupported dst protocol #{pdst[:protocol]}" if pdst[:protocol]
@@ -90,7 +109,7 @@ module FileLoader
         cmd += '" && scp -r -oBatchMode=yes -oStrictHostKeyChecking=no '
         cmd += "-l #{opts[:speed_limit]} " if opts[:speed_limit]
         cmd += "#{src} \""
-        cmd += build_url(user: pdst[:user] || opts[:user], password: pdst[:password], host: pdst[:host], path: pdst[:path])
+        cmd += build_url(user: pdst[:user] || opts[:user], password: pdst[:password] || opts[:password], host: pdst[:host], path: pdst[:path])
         cmd += '"'
       end
     when nil
