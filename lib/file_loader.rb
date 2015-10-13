@@ -39,21 +39,27 @@ module FileLoader
   end
 
   def exists?(url, opts = {})
-    purl = parse_url(url)
+    opts = defaults.merge(opts)
+    purl = parse_url(url = url.shellescape)
     case purl[:protocol]
     when 'http', 'https', 'ftp'
       cmd = "curl -I \"#{url}\""
     when 'scp'
-      cmd = "ssh -oBatchMode=yes -oStrictHostKeyChecking=no "
-      cmd += build_url(user: purl[:user] || opts[:user], password: purl[:password] || opts[:password], host: purl[:host])
-      cmd += ' "test -f '
-      cmd += purl[:path]
-      cmd += '"'
+      if purl[:host] == Socket.gethostname
+        cmd = 'test -f ' + purl[:path]
+      else
+        cmd = "ssh -oBatchMode=yes -oStrictHostKeyChecking=no "
+        cmd += build_url(user: purl[:user] || opts[:user], password: purl[:password] || opts[:password], host: purl[:host])
+        cmd += ' "test -f '
+        cmd += purl[:path]
+        cmd += '"'
+      end
     when nil
       cmd = 'test -f ' + purl[:path]
     else
       return false
     end
+    opts[:logger].debug(cmd) if opts[:logger]
     system(cmd + ' 2>/dev/null 1>/dev/null')
   end
 
