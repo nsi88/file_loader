@@ -82,9 +82,8 @@ module FileLoader
         cmd += "-l #{opts[:speed_limit]} " if opts[:speed_limit]
         cmd += '"'
         cmd += build_url(user: psrc[:user] || opts[:user], password: psrc[:password] || opts[:password], host: psrc[:host], path: psrc[:path])
-        cmd += '" "'
+        cmd += '" '
         cmd += dst
-        cmd += '"'
       end
     when nil
       cmd = cp_cmd(src, dst)
