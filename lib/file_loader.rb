@@ -42,8 +42,10 @@ module FileLoader
     opts = defaults.merge(opts)
     purl = parse_url(url = url.shellescape)
     case purl[:protocol]
-    when 'http', 'https', 'ftp'
-      cmd = "curl -I \"#{url}\""
+    when 'http', 'https'
+      cmd = "wget --spider \"#{url}\""
+    when 'ftp'
+      cmd = "curl -sI \"#{url}\""
     when 'scp'
       if purl[:host] == Socket.gethostname
         cmd = 'test -f ' + purl[:path]
