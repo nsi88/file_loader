@@ -5,7 +5,7 @@ require 'logger'
 
 module FileLoader
   extend self
-  
+
   # === Options
   # [:permissions] b.e. '0777'
   # [:speed_limit] in Kbit/s
@@ -68,7 +68,7 @@ module FileLoader
   def download(src, dst, opts = {})
     pdst = parse_url(dst = dst.shellescape)
     raise "Unsupported dst protocol #{pdst[:protocol]}" if pdst[:protocol]
-    
+
     opts = defaults.merge(opts)
 
     psrc = parse_url(src = src.shellescape)
@@ -92,6 +92,8 @@ module FileLoader
     else
       raise "Unsupported src protocol #{psrc[:protocol]}"
     end
+
+    cmd = 'ionice -c 3 ' + cmd if opts[:ionice] && cmd
     cmd = mkdir_cmd(dst, opts) + ' && ' + cmd if cmd
     exec_cmd(cmd, opts)
   end
@@ -99,21 +101,21 @@ module FileLoader
   def upload(src, dst, opts = {})
     psrc = parse_url(src = src.shellescape)
     raise "Unsupported src protocol #{psrc[:protocol]}" if psrc[:protocol]
-  
+
     opts = defaults.merge(opts)
-      
     pdst = parse_url(dst = dst.shellescape)
+    ionice = opts[:ionice] ? ' ionice -c 3 ' : ''
     case pdst[:protocol]
     when 'scp'
       if Socket.gethostname == pdst[:host]
         cmd = cp_cmd(src, pdst[:path])
-        cmd = mkdir_cmd(pdst[:path], opts) + ' && ' + cmd if cmd
+        cmd = mkdir_cmd(pdst[:path], opts) + ' && ' + ionice + cmd if cmd
       else
         cmd = "ssh -oBatchMode=yes -oStrictHostKeyChecking=no "
         cmd += build_url(user: pdst[:user] || opts[:user], password: pdst[:password], host: pdst[:host])
         cmd += ' "'
         cmd += mkdir_cmd(pdst[:path], opts)
-        cmd += '" && scp -r -oBatchMode=yes -oStrictHostKeyChecking=no '
+        cmd += '" && ' + ionice + ' scp -r -oBatchMode=yes -oStrictHostKeyChecking=no '
         cmd += "-l #{opts[:speed_limit]} " if opts[:speed_limit]
         cmd += "#{src} \""
         cmd += build_url(user: pdst[:user] || opts[:user], password: pdst[:password] || opts[:password], host: pdst[:host], path: pdst[:path])
@@ -121,7 +123,7 @@ module FileLoader
       end
     when nil
       cmd = cp_cmd(src, dst)
-      cmd = mkdir_cmd(pdst[:path], opts) + ' && ' + cmd if cmd
+      cmd = mkdir_cmd(pdst[:path], opts) + ' && ' + ionice + cmd if cmd
     else
       raise "Unsupported protocol #{parsed_src[:protocol]}"
     end
